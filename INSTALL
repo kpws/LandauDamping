@@ -1,0 +1,6 @@
+gmp must first be installed. Then run:
+
+gcc pgs.c -pthread -lgmp -lm -o pgs
+
+Cheers,
+Petter
