@@ -3,22 +3,69 @@
 #include <gmp.h>
 #include <math.h>
 #include <complex.h>
+#include <pthread.h>
 
-unsigned long inverseMaxError=1000000000000;
+const unsigned long inverseMaxError=1000000000000;
+
+double rmaxD, *pg;
+int nr, nk, nphi, nThreads;
+mpf_t *coefR,*coefI;
+
+void *calculateRadii(void *rStartP)
+{
+    int operc=-1;
+    mpf_t r,prodR,prodI;
+    mpf_init(r);
+    mpf_init(prodR);
+    mpf_init(prodI);
+    mpf_t *rPowers=malloc(sizeof(mpf_t)*nk);
+    mpf_init_set_ui(rPowers[0],1ul);
+    for(int i=*(int*)rStartP;i<nr;i+=nThreads){
+        mpf_set_d(r,rmaxD*i/(nr-1));
+        for(int j=1;j<nk;j++){
+            mpf_init(rPowers[j]);
+            mpf_mul(rPowers[j],rPowers[j-1],r);
+        } 
+        mpf_t accR,accI;
+        mpf_init(accR);
+        mpf_init(accI);
+        for(int j=0;j<nphi;j++){
+            mpf_set_ui(accR,0ul);
+            mpf_set_ui(accI,0ul);
+            for(int k=0;k<nk;k++)
+            {
+                mpf_mul(prodR, rPowers[k], coefR[j+k*nphi]);
+                mpf_mul(prodI, rPowers[k], coefI[j+k*nphi]);
+                mpf_add(accR, accR, prodR);
+                mpf_add(accI, accI, prodI);
+                pg[i + j*nr] = mpf_get_d(accR) + I*mpf_get_d(accI);
+            }
+            if(*(int*)rStartP==0){
+                int perc=100.*(i*nphi+j)/(nr*nphi-1);
+                if(perc!=operc){
+                    printf("   %d%%   \r", perc );
+                    fflush(stdout);
+                    operc=perc;
+                }
+            }
+        }
+    }
+    return NULL;
+}
 
 int main(int argc, char *argv[]){
-    if(argc!=2){
-        printf("Please provide an input file.\n");
+    if(argc!=4){
+        printf("Usage: pgs number_of_threads input_file output_file\n");
         return 1;
     }
     FILE *fp;
     printf("Loading coefficients...\n");
-    if(! (fp = fopen(argv[1], "r")))
+    if(! (fp = fopen(argv[2], "r")))
     {
-        printf("Unable to open input file.\n");
+        fprintf(stderr, "Unable to open input file.\n");
         return 1;
     }
-    int accDec,nphi,nk;
+    int accDec;
 
     fscanf (fp, "%d", &accDec);
     fscanf (fp, "%d", &nphi);
@@ -34,23 +81,25 @@ int main(int argc, char *argv[]){
     
     int prec=accDec*log(10.)/log(2.)+30;
     mpf_set_default_prec(prec*3);
-    mpf_t *coefR=malloc(sizeof(mpf_t)*nphi*nk);
-    mpf_t *coefI=malloc(sizeof(mpf_t)*nphi*nk);
+    coefR=malloc(sizeof(mpf_t)*nphi*nk);
+    coefI=malloc(sizeof(mpf_t)*nphi*nk);
 
-    if(!coefR || !coefI)
-    {
-        printf("Not enough memory.\n");
+    if(!coefR || !coefI){
+        fprintf(stderr, "Not enough memory.\n");
         return 1;
     }
-    //nk=200;
+
+    nk=100;
     int precDec=accDec+30, operc=-1;
     for(int j=0;j<nk;j++){
         for(int i=0;i<nphi;i++)
         {
             mpf_init(coefR[i + nphi*j]); 
-            gmp_fscanf(fp, "%Ff", coefR[i + nphi*j]);
+            //gmp_fscanf(fp, "%Ff", coefR[i + nphi*j]);
             mpf_init(coefI[i + nphi*j]); 
-            gmp_fscanf(fp, "%Ff", coefI[i + nphi*j]);
+            //gmp_fscanf(fp, "%Ff", coefI[i + nphi*j]);
+            mpf_inp_str(coefR[i + nphi*j],fp,10);
+            mpf_inp_str(coefI[i + nphi*j],fp,10);
         }
         int perc=100.*j/(nk-1);
         if(perc!=operc){
@@ -61,7 +110,7 @@ int main(int argc, char *argv[]){
     }
     fclose(fp); 
     printf(" * Done\n");
-    printf("Generating radius power matrix...\n");
+    printf("Calculating max radius...\n");
     mpf_t rmax, r2, i2;
     mpf_init(rmax);
     mpf_init(r2);
@@ -80,60 +129,48 @@ int main(int argc, char *argv[]){
     int nsqrt=log2(-exp);
     for(int i=0;i<nsqrt;i++)
         mpf_sqrt(rmax,rmax);
-    //gmp_printf ("%.*Ff \n", precDec, rmax);
     
-    double rmaxD=pow(mpf_get_d(rmax),-pow(2.,nsqrt)/(nk-1.));
+    rmaxD=pow(mpf_get_d(rmax),-pow(2.,nsqrt)/(nk-1.));
     printf(" * Maximum radius: %1.5f\n",rmaxD);
-    //printf("%d,   %1.5f\n",nsqrt,-pow(2.,nsqrt)/(nk-1.));
-    //printf("hm %1.50f",mpf_get_d(rmax));
     
-    int nr=nk+10;
-    mpf_t *rs=malloc(sizeof(mpf_t)*nr);
-    mpf_t *rmat=malloc(sizeof(mpf_t)*nr*nk);
-    for(int i=0;i<nr;i++){
-        mpf_init_set_d(rs[i],rmaxD*i/(nr-1));
-        mpf_init_set_ui(rmat[i+0*nr],1ul);
-        for(int j=1;j<nk;j++){
-            mpf_init(rmat[i+j*nr]);
-            mpf_mul(rmat[i+j*nr],rmat[i+(j-1)*nr],rs[i]);
-        }
-    }
+    nr=nk+10;
     
-    printf(" * Done.\n");
-    printf("Matrix multiply...\n");
-
-    complex double *pg=malloc(sizeof(complex double)*nr*nphi);
+    printf("Series evaluation...\n");
+    
+    pg=malloc(sizeof(complex double)*nr*nphi);
     if(!pg){
-        printf("Not enough memory.\n");
+        fprintf(stderr,"Not enough memory\n");
         return 1;
     }
-    mpf_t accR,accI;
-    mpf_init(accR);
-    mpf_init(accI);
-    for(int i=0;i<nr;i++)
-    for(int j=0;j<nphi;j++){
-        mpf_set_ui(accR,0ul);
-        mpf_set_ui(accI,0ul);
-        for(int k=0;k<nk;k++)
-        {
-            mpf_mul(r2, rmat[i+k*nr], coefR[j+k*nphi]);
-            mpf_mul(i2, rmat[i+k*nr], coefI[j+k*nphi]);
-            mpf_add(accR, accR, r2);
-            mpf_add(accI, accI, i2);
-            pg[i + j*nr] = mpf_get_d(accR) + I*mpf_get_d(accI);
-        }
-        int perc=100.*(i*nphi+j)/(nr*nphi-1);
-        if(perc!=operc){
-            printf("   %d%%     \r", perc );
-            fflush(stdout);
-            operc=perc;
+    
+    if(sscanf(argv[1],"%d",&nThreads)!=1 || !(0<nThreads)){
+        fprintf(stderr,"Couldn't read number of threads\n");
+        return 1;
+    }
+
+    printf(" * Starting %d threads...\n", nThreads);
+    int *startPoints=malloc(sizeof(int)*nThreads);;
+    pthread_t *workers=malloc(sizeof(pthread_t)*nThreads);
+    for(int i=0;i<nThreads;i++){
+        startPoints[i]=i;
+        if(pthread_create(&workers[i], NULL, calculateRadii, &startPoints[i])) {
+            fprintf(stderr, "Error creating thread\n");
+            return 1;
         }
     }
     
+    for(int i=0;i<nThreads;i++){
+        printf("              Waiting for thread %d to join...\r", i+1);
+        if(pthread_join(workers[i], NULL)) {
+            fprintf(stderr, "Error joining thread\n");
+            return 1;
+        }   
+    }
+
     printf(" * Done\n");
     printf("Saving result...\n");
     
-    fp=fopen("smallPhiGrid","w");
+    fp=fopen(argv[3],"w");
     for(int i=0;i<nr;i++)
     for(int j=0;j<nphi;j++)
         fprintf(fp,"%1.15f\n",creal(pg[i+j*nr]));
