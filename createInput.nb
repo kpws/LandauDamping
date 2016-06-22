@@ -1,0 +1,188 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 10.4' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      6191,        180]
+NotebookOptionsPosition[      5573,        154]
+NotebookOutlinePosition[      5932,        170]
+CellTagsIndexPosition[      5889,        167]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Notebook Description", "Title",
+ CellChangeTimes->{{3.675533004528796*^9, 3.6755330079737062`*^9}}],
+
+Cell["\<\
+This notebook is intended to take coefficients calculated on a cluster and \
+saved as a mathematica expression and open them and save in a format that is \
+convenient to read using GMP. The result is saved in \
+\[OpenCurlyDoubleQuote]smallPhi\[CloseCurlyDoubleQuote] in ones home directory\
+\>", "Text",
+ CellChangeTimes->{{3.675533023972745*^9, 3.6755330926594563`*^9}}]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Conversion", "Title",
+ CellChangeTimes->{{3.6755330180211573`*^9, 3.675533020069425*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"tmp", "=", 
+   RowBox[{
+   "Get", "[", 
+    "\"\<angularCoefficientsEuclidean_ks=4000_acc=1000_nphi=200_phimin=-0.\
+0490874_phimax=0.549779\>\"", "]"}]}], ";"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"acc", "=", "1000"}], ";"}]], "Input",
+ CellChangeTimes->{{3.675509847191259*^9, 3.675509851949316*^9}, {
+  3.675509973351837*^9, 3.675509973927616*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"\[Phi]s", "=", 
+   RowBox[{"tmp", "[", 
+    RowBox[{"[", "1", "]"}], "]"}]}], ";"}]], "Input",
+ CellChangeTimes->{{3.675510402280192*^9, 3.675510408603918*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"FixedTextString", "[", "x_", "]"}], ":=", 
+  RowBox[{
+   RowBox[{"If", "[", 
+    RowBox[{
+     RowBox[{"x", "<", "0"}], ",", "\"\<-\>\"", ",", "\"\<\>\""}], "]"}], "<>", 
+   RowBox[{"TextString", "@", 
+    RowBox[{"Abs", "@", "x", 
+     RowBox[{"(*", 
+      RowBox[{
+       RowBox[{"another", " ", "mathematica", " ", "bug"}], ",", " ", 
+       RowBox[{
+        RowBox[{"who", "'"}], "s", " ", "fucking", " ", 
+        RowBox[{"surprised", "?"}]}]}], "*)"}]}]}]}]}]], "Input",
+ CellChangeTimes->{{3.675512131380723*^9, 3.675512248089451*^9}}],
+
+Cell["\<\
+Seems to be a bright team working on this function... \
+http://mathematica.stackexchange.com/questions/65600/why-is-textstring-0-5-a-\
+positive-number
+Even their patch and the above fix is not enough, there seems to be a cutoff \
+at about 300 digits..\
+\>", "Text",
+ CellChangeTimes->{{3.675514385342738*^9, 3.6755143979572277`*^9}, {
+  3.675535597759851*^9, 3.675535630973969*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"f", "=", 
+   RowBox[{"OpenWrite", "[", 
+    RowBox[{"\"\<smallPhi\>\"", ",", 
+     RowBox[{"PageWidth", "\[Rule]", "Infinity"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Write", "[", 
+   RowBox[{"f", ",", "acc"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Write", "[", 
+   RowBox[{"f", ",", 
+    RowBox[{"Length", "@", 
+     RowBox[{"tmp", "[", 
+      RowBox[{"[", "1", "]"}], "]"}]}]}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Write", "[", 
+   RowBox[{"f", ",", 
+    RowBox[{"Length", "@", 
+     RowBox[{"tmp", "[", 
+      RowBox[{"[", 
+       RowBox[{"2", ",", "1"}], "]"}], "]"}]}]}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"Write", "[", 
+     RowBox[{"f", ",", 
+      RowBox[{"N", "@", "#"}]}], "]"}], "&"}], "/@", "\[Phi]s"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"WriteLine", "[", 
+     RowBox[{"f", ",", "#"}], "]"}], "&"}], "/@", 
+   RowBox[{"ToString", "/@", 
+    RowBox[{"CForm", "/@", 
+     RowBox[{"Flatten", "[", 
+      RowBox[{"ReIm", "[", 
+       RowBox[{"Flatten", "[", 
+        RowBox[{"tmp", "[", 
+         RowBox[{"[", "2", "]"}], "]"}], "]"}], "]"}], "]"}]}]}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Close", "[", "f", "]"}], ";"}]}], "Input",
+ CellChangeTimes->{{3.675509782729813*^9, 3.675509808462853*^9}, {
+   3.675509839773685*^9, 3.6755098409751673`*^9}, {3.67550992757066*^9, 
+   3.675509968626791*^9}, {3.6755099991688004`*^9, 3.675510009913443*^9}, {
+   3.6755100730542088`*^9, 3.675510083812152*^9}, {3.675510138835994*^9, 
+   3.675510155155484*^9}, {3.675510189194092*^9, 3.675510259878235*^9}, {
+   3.675510378641768*^9, 3.675510431492872*^9}, {3.6755104809489307`*^9, 
+   3.675510561463121*^9}, {3.6755105982061157`*^9, 3.675510628222151*^9}, {
+   3.675510750438591*^9, 3.6755107581970387`*^9}, {3.675510806084427*^9, 
+   3.675510879176196*^9}, {3.6755109663809443`*^9, 3.675511029211087*^9}, 
+   3.675511099817672*^9, {3.6755112125799217`*^9, 3.6755112248738213`*^9}, {
+   3.675512277127057*^9, 3.675512352264748*^9}, 3.67551244587668*^9, {
+   3.6755125655706673`*^9, 3.6755125683387938`*^9}, {3.675513089889269*^9, 
+   3.6755131054391747`*^9}, {3.675513163872694*^9, 3.6755132263829603`*^9}, {
+   3.675513301869946*^9, 3.675513423668009*^9}, {3.675513458771009*^9, 
+   3.67551347516355*^9}, {3.6755138341724854`*^9, 3.675513876911735*^9}, {
+   3.6755139214723883`*^9, 3.6755139226148787`*^9}, {3.67551399972092*^9, 
+   3.675514001142478*^9}, {3.6755329411932096`*^9, 3.675532941433527*^9}, {
+   3.675533172156114*^9, 3.675533175976993*^9}, {3.675534569682858*^9, 
+   3.6755346132732277`*^9}, {3.6755355031585817`*^9, 3.6755355091550083`*^9}}]
+}, Open  ]]
+},
+WindowSize->{1315, 805},
+WindowMargins->{{10, Automatic}, {19, Automatic}},
+FrontEndVersion->"10.4 for Mac OS X x86 (32-bit, 64-bit Kernel) (February 25, \
+2016)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 105, 1, 114, "Title"],
+Cell[688, 25, 381, 6, 61, "Text"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[1106, 36, 95, 1, 114, "Title"],
+Cell[1204, 39, 206, 6, 36, "Input"],
+Cell[1413, 47, 187, 4, 35, "Input"],
+Cell[1603, 53, 195, 5, 36, "Input"],
+Cell[1801, 60, 577, 15, 36, "Input"],
+Cell[2381, 77, 392, 8, 61, "Text"],
+Cell[2776, 87, 2781, 64, 162, "Input"]
+}, Open  ]]
+}
+]
+*)
+
