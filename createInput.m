@@ -8,5 +8,5 @@ Write[f,acc];
 Write[f,Length@tmp[[1]]];
 Write[f,Length@tmp[[2,1]]];
 Write[f,N@#]&/@\[Phi]s;
-WriteLine[f,#]&/@ToString/@CForm/@Flatten[ReIm[Flatten[tmp[[2]]]]];
+WriteLine[f,#]&/@ToString/@CForm/@Flatten[ReIm[Flatten[Transpose[tmp[[2]]]]]];
 Close[f];

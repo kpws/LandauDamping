@@ -59,7 +59,7 @@ int main(int argc, char *argv[]){
         return 1;
     }
     FILE *fp;
-    printf("Loading coefficients...\n");
+    printf("Loading coefficients to memory...\n");
     if(! (fp = fopen(argv[2], "r")))
     {
         fprintf(stderr, "Unable to open input file.\n");
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]){
     fscanf (fp, "%d", &nphi);
     fscanf (fp, "%d", &nk);
 
-    printf(" * Accuracy: %d\n",accDec);
+    printf(" * Accuracy: %d\n digits",accDec);
     printf(" * Number of angles: %d\n",nphi);
     printf(" * Number of coefficients: %d\n",nk);
     
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    nk=100;
+    //nk=800;
     int precDec=accDec+30, operc=-1;
     for(int j=0;j<nk;j++){
         for(int i=0;i<nphi;i++)
@@ -100,11 +100,7 @@ int main(int argc, char *argv[]){
             gmp_fscanf(fp, "%Ff", coefI[i + nphi*j]);
             //mpf_inp_str(coefR[i + nphi*j],fp,10);
             //mpf_inp_str(coefI[i + nphi*j],fp,10);
-    	    //gmp_printf ("fixed point mpf %.*Ff \n", 1200, coefR[i + nphi*j]);
-    	//    gmp_printf (" %.*Fe \n", 1100,coefR[i + nphi*j]);
         }
-//if(j>300)
-//return 0;
         int perc=100.*j/(nk-1);
         if(perc!=operc){
             printf("   %d%%     \r", perc );
@@ -128,17 +124,12 @@ int main(int argc, char *argv[]){
     }
     mpf_sqrt(rmax,rmax);
     mpf_mul_ui(rmax,rmax,inverseMaxError);
-    gmp_printf ("fixed point mpf %.*Fe \n", 1200, rmax);
     long exp;
     mpf_get_d_2exp(&exp,rmax);
-	printf("exp %d",exp);
     int nsqrt=log2(-exp);
     for(int i=0;i<nsqrt;i++)
         mpf_sqrt(rmax,rmax);
     
-    gmp_printf ("fixed point mpf %.*Fe \n", 1200, rmax);
-	printf("rmax d %f",mpf_get_d(rmax));
-	printf("pow %f",-pow(2.,nsqrt)/(nk-1.));
     rmaxD=pow(mpf_get_d(rmax),-pow(2.,nsqrt)/(nk-1.));
     printf(" * Maximum radius: %1.5f\n", rmaxD);
     
@@ -181,8 +172,10 @@ int main(int argc, char *argv[]){
     
     fp=fopen(argv[3],"w");
     for(int i=0;i<nr;i++)
-    for(int j=0;j<nphi;j++)
+    for(int j=0;j<nphi;j++){
         fprintf(fp,"%1.15f\n",creal(pg[i+j*nr]));
+        fprintf(fp,"%1.15f\n",cimag(pg[i+j*nr]));
+    }
     fclose(fp);
     printf(" * Done\n");
     //mpf_clear(r);  don't deallocate since we just quit anyways
