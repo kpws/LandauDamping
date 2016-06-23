@@ -95,12 +95,16 @@ int main(int argc, char *argv[]){
         for(int i=0;i<nphi;i++)
         {
             mpf_init(coefR[i + nphi*j]); 
-            //gmp_fscanf(fp, "%Ff", coefR[i + nphi*j]);
+            gmp_fscanf(fp, "%Ff", coefR[i + nphi*j]);
             mpf_init(coefI[i + nphi*j]); 
-            //gmp_fscanf(fp, "%Ff", coefI[i + nphi*j]);
-            mpf_inp_str(coefR[i + nphi*j],fp,10);
-            mpf_inp_str(coefI[i + nphi*j],fp,10);
+            gmp_fscanf(fp, "%Ff", coefI[i + nphi*j]);
+            //mpf_inp_str(coefR[i + nphi*j],fp,10);
+            //mpf_inp_str(coefI[i + nphi*j],fp,10);
+    	    //gmp_printf ("fixed point mpf %.*Ff \n", 1200, coefR[i + nphi*j]);
+    	//    gmp_printf (" %.*Fe \n", 1100,coefR[i + nphi*j]);
         }
+//if(j>300)
+//return 0;
         int perc=100.*j/(nk-1);
         if(perc!=operc){
             printf("   %d%%     \r", perc );
@@ -124,14 +128,19 @@ int main(int argc, char *argv[]){
     }
     mpf_sqrt(rmax,rmax);
     mpf_mul_ui(rmax,rmax,inverseMaxError);
+    gmp_printf ("fixed point mpf %.*Fe \n", 1200, rmax);
     long exp;
     mpf_get_d_2exp(&exp,rmax);
+	printf("exp %d",exp);
     int nsqrt=log2(-exp);
     for(int i=0;i<nsqrt;i++)
         mpf_sqrt(rmax,rmax);
     
+    gmp_printf ("fixed point mpf %.*Fe \n", 1200, rmax);
+	printf("rmax d %f",mpf_get_d(rmax));
+	printf("pow %f",-pow(2.,nsqrt)/(nk-1.));
     rmaxD=pow(mpf_get_d(rmax),-pow(2.,nsqrt)/(nk-1.));
-    printf(" * Maximum radius: %1.5f\n",rmaxD);
+    printf(" * Maximum radius: %1.5f\n", rmaxD);
     
     nr=nk+10;
     
