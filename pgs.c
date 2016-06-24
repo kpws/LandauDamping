@@ -5,9 +5,10 @@
 #include <complex.h>
 #include <pthread.h>
 
-const unsigned long inverseMaxError=1000000000000;
+const unsigned long inverseMaxErrorMag=17;
 
-double rmaxD, *pg;
+double rmaxD;
+complex double *pg;
 int nr, nk, nphi, nThreads;
 mpf_t *coefR,*coefI;
 
@@ -71,7 +72,7 @@ int main(int argc, char *argv[]){
     fscanf (fp, "%d", &nphi);
     fscanf (fp, "%d", &nk);
 
-    printf(" * Accuracy: %d\n digits",accDec);
+    printf(" * Accuracy: %d digits\n",accDec);
     printf(" * Number of angles: %d\n",nphi);
     printf(" * Number of coefficients: %d\n",nk);
     
@@ -89,7 +90,7 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    //nk=800;
+    //nk=100;
     int precDec=accDec+30, operc=-1;
     for(int j=0;j<nk;j++){
         for(int i=0;i<nphi;i++)
@@ -123,7 +124,8 @@ int main(int argc, char *argv[]){
             mpf_set(rmax, r2);
     }
     mpf_sqrt(rmax,rmax);
-    mpf_mul_ui(rmax,rmax,inverseMaxError);
+	for(int i=0;i<inverseMaxErrorMag;i++)
+    	mpf_mul_ui(rmax,rmax,10);
     long exp;
     mpf_get_d_2exp(&exp,rmax);
     int nsqrt=log2(-exp);
@@ -171,10 +173,17 @@ int main(int argc, char *argv[]){
     printf("Saving result...\n");
     
     fp=fopen(argv[3],"w");
+	fprintf(fp,"%d\n",nphi);
+	fprintf(fp,"%d\n",nr);
+
+    for(int i=0;i<nr;i++)
+		fprintf(fp, "%20.17e\n",rmaxD*i/(nr-1));
+    for(int i=0;i<nphi;i++)
+		fprintf(fp, "%20.17e\n",phis[i]);
     for(int i=0;i<nr;i++)
     for(int j=0;j<nphi;j++){
-        fprintf(fp,"%1.15f\n",creal(pg[i+j*nr]));
-        fprintf(fp,"%1.15f\n",cimag(pg[i+j*nr]));
+        fprintf(fp,"%20.17e\n",creal(pg[i+j*nr]));
+        fprintf(fp,"%20.17e\n",cimag(pg[i+j*nr]));
     }
     fclose(fp);
     printf(" * Done\n");
