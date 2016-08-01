@@ -11,6 +11,9 @@ int nphis[2],nrs[2],n,cn,nThreads;
 double *phiss[2], *rss[2],Nf,sqrtNf,L,cL,alpha,csigma;
 double cs=1.;
 
+int nFactor, extra, cn2;
+double delta, cL2, *ker, cDelta, Delta;
+
 double complex cubicInterp(double complex p0,double complex p1,double complex p2,double complex p3, double x) {
     return p1 + 0.5 * x*(p2 - p0 + x*(2.0*p0 - 5.0*p1 + 4.0*p2 - p3 + x*(3.0*(p1 - p2) + p3 - p0)));
 }
@@ -21,6 +24,10 @@ double complex asymExponent(double tau, double x, double sqrtNf){
 }
 
 double complex GEnum(double tau, double x, double sqrtNf){
+	//tau=tau*(I+0.01);
+	//return cexp((tau+I*x)*(tau+I*x)/(12*M_PI*csqrt(tau*tau+x*x)))/(2.*M_PI*(x*I - tau));
+	
+	//return sin(tau)*sin(tau)/(tau*tau)*exp(-x*x);  Benchmarking function
     double sr=x*x+tau*tau;
     int g;
     
@@ -68,43 +75,51 @@ double complex GEnum(double tau, double x, double sqrtNf){
         e=r*p;
         if(x*tau<0.)e=conj(e);
     }
-	return cexp (e)/(2.*M_PI*(x*I - tau));
+	return cexp(e)/(2.*M_PI*(x*I - tau));
 }
 
 void *calculateGs(void *rStartP)
 {
-	double cDelta=2*cL/(cn-1);
+	int iStart=*(int*)rStartP*n/nThreads;
+	int iEnd=(*(int*)rStartP+1)*n/nThreads;
 	
-	double kernNorm=0;
-	for(int ci=0;ci<cn;ci++)
-	for(int cj=0;cj<cn;cj++){
-		double dx=-cL + ci*cDelta;
-		double dy=-cL + cj*cDelta;
-		kernNorm+=exp(-(dx*dx+dy*dy)/(csigma*csigma));
-	}
-	kernNorm=1/kernNorm;
-	
-    double Delta=2*L/(n-1);
-    int operc=-1;
-    for(int i=*(int*)rStartP;i<n;i+=nThreads)
-    for(int j=0;j<n;j++){
-        complex double acc=0;
-        for(int ci=0;ci<cn;ci++)
-		for(int cj=0;cj<cn;cj++){
-			double dx=-cL + ci*cDelta;
-			double dy=-cL + cj*cDelta;
-			acc+=exp(-(dx*dx+dy*dy)/(csigma*csigma))*GEnum( -L + i*Delta+dx, -L + j*Delta+dy,sqrtNf);
+	int iSize=cn2+(iEnd-iStart-1)*nFactor;
+	complex double *buffer=malloc(sizeof(complex double)*cn2*iSize);
+	int bufferJ=0;	//next written line in buffer. If the kernel center 'rolls' in the buffer,
+					//then we can avoid some read/writes
+	int jj=0;//our place in Gs
+	int operc=-1;
+	for(int j=0;j<cn2+(n-1)*nFactor;j++){
+		for(int i=0;i<iSize;i++){
+			buffer[i+bufferJ*iSize]=GEnum( -L-cL2 + (iStart*nFactor + i)*cDelta, -L-cL2 + j*cDelta,sqrtNf);
 		}
-        
-        Gs[i+j*n]=acc*kernNorm;
-        if(*(int*)rStartP==0){
-            int perc=100.*(i*n+j)/(n*n-1);
-            if(perc!=operc){
-                printf("   %d%%   \r", perc );
-                fflush(stdout);
-                operc=perc;
-            }
-        }
+		bufferJ++;
+		if(bufferJ>=cn2)bufferJ-=cn2;
+		int fromStart=j+1-cn2;
+		
+		if(0<=fromStart  &&  fromStart%nFactor==0)
+		{
+			for(int ii=iStart;ii<iEnd;ii++){
+				complex double acc=0;
+				for(int cj=0;cj<cn2;cj++){
+					int bj=(nFactor*jj+cj)%cn2;
+					for(int ci=0;ci<cn2;ci++){
+						int bi=nFactor*(ii-iStart)+ci;
+						acc+=ker[ci+cn2*cj] * buffer[bi+bj*iSize];
+					}
+				}
+				Gs[ii+jj*n]=acc;
+			}
+			jj++;
+			if(*(int*)rStartP==0){
+				int perc=100.*(jj)/(n-1);
+				if(perc!=operc){
+					printf("   %d%%   \r", perc );
+					fflush(stdout);
+					operc=perc;
+				}
+			}
+		}
     }
     return NULL;
 }
@@ -132,8 +147,8 @@ int main(int argc, char *argv[]){
 	//fscanf(fp, "%lf\n", &cL);
 	//fscanf(fp, "%d\n", &cn);
 	//fscanf(fp, "%lf\n", &alpha);
-	cn=71; //21 still seems to show some aliasing, odd seems better
-	alpha=2.; //UV aliasing suppresed by exp(-2.5^2) ~ .2%
+	cn=51; //21 still seems to show some aliasing, odd seems better
+	alpha=2.5; //UV aliasing suppresed by exp(-2.5^2) ~ .2%
 	double alpha2=alpha; //Cut off kernel at exp(-2.5^2) ~ .2%
 	csigma=4*alpha*L/(n*M_PI);
 	cL=alpha2*csigma;
@@ -197,6 +212,34 @@ int main(int argc, char *argv[]){
 		fprintf(stderr,"Error too large at phi=%g, increase polar grid size.\n",phiWorst);
 		return 1;
 	}
+	
+	printf("Preparing sampling...\n");
+	nFactor=1+(cn*L/cL/n);  // How much denser we sample for convolution than fft
+	delta=2*L/((n-1)*nFactor);
+	cn2=cL/delta;// How many points we actually use for the kernel, supposed to be
+	cn2=1+2*cn2;				// slightly larger than cn so points end up at points we can reuse.
+	// We also want cn2 to be odd.
+	cL2=(cn2-1)/2*delta; //How large our kernel actually is
+	
+	printf(" * Extra factor of samples needed for low-pass: %d*%d\n",nFactor,nFactor);
+	printf(" * Kernel size in samples: %d*%d\n",cn2,cn2);
+	
+	//precompute kernel
+	double kerNorm=0;
+	ker=malloc(sizeof(double)*cn2*cn2);
+	cDelta=2*cL2/(cn2-1);
+	for(int ci=0;ci<cn2;ci++)
+		for(int cj=0;cj<cn2;cj++){
+			double dx=-cL2 + ci*cDelta;
+			double dy=-cL2 + cj*cDelta;
+			ker[ci+cj*cn2]=exp(-(dx*dx+dy*dy)/(csigma*csigma));
+			kerNorm+=ker[ci+cj*cn2];
+		}
+	for(int ci=0;ci<cn2*cn2;ci++) //normalize
+		ker[ci]/=kerNorm;
+	
+	Delta=2*L/(n-1);
+	extra=(cn-1)/2;
 	
     printf("Sampling G...\n");
     Gs=malloc(sizeof(double complex)*n*n);

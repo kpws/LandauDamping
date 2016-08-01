@@ -1,6 +1,7 @@
-gmp must first be installed. Then run:
+gmp must first be installed for pgs. To compile run:
 
 gcc pgs.c -pthread -lgmp -lm -o pgs
+gcc cgs.c -pthread -lm -o cgs
 
 Cheers,
 Petter
