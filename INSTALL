@@ -1,7 +1,8 @@
 gmp must first be installed for pgs. To compile run:
-
 gcc pgs.c -pthread -lgmp -lm -o pgs
-gcc cgs.c -pthread -lm -o cgs
+
+fftw must first be installed for cgs. To compile run:
+gcc cgs.c -pthread -lfftw3 -lm -o cgs
 
 Cheers,
 Petter
