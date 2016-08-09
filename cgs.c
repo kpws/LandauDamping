@@ -200,12 +200,12 @@ int main(int argc, char *argv[]){
     fscanf(fp, "%d\n", &n);  n=1<<n;
 	fclose(fp);
 	
-	alpha=3.5;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
+	alpha=3.7;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
 	double alpha2=alpha; //Cut off kernel at exp(-2.5^2) ~ .2%
 	alpha3=alpha; //Have window function be exp(-2.5^2) at spatial edges
 	csigma=4*alpha*L/(n*M_PI);
 	cL=alpha2*csigma;
-	double pointsPerWidth=10.;
+	double pointsPerWidth=12.;
 	cn=2*pointsPerWidth*cL/csigma;//51; //21 still seems to show some aliasing
 
 	printf(KBLU" * L*sqrt(Nf) = %g\n"KRESET,L*sqrt(Nf));
@@ -351,7 +351,7 @@ int main(int argc, char *argv[]){
 	}
 	printf(KBLU" * Sucessfully allocated %d MB\n"KRESET,(int)(sizeof(double complex)*2*n*n/(1024*1024)));
 	printf(KBLU" * Using this memory to find best fft scheme to use later\n"KRESET);
-	fftw_plan fftPlan = fftw_plan_dft_2d(n,n, Gs, Gso, FFTW_FORWARD, FFTW_MEASURE);
+	fftw_plan fftPlan = fftw_plan_dft_2d(n,n, Gs, Gso, FFTW_FORWARD, FFTW_ESTIMATE);
 	
 	printf(KGRN"Sampling G...\n"KRESET);
     printf(KBLU" * Starting %d threads...\n"KRESET, nThreads);
