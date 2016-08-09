@@ -24,25 +24,51 @@ fftw_complex *Gs, *Gso;
 int nphis[MAX_PG],nrs[MAX_PG],n,cn,nThreads,nPolarGrid;
 double *phiss[MAX_PG], *rss[MAX_PG],Nf,sqrtNf,L,cL,alpha,alpha3,csigma;
 double cs=1.;
+int acn;
+double complex *acs;
 
 int nFactor, cn2;
 double delta, cL2, *ker, cDelta, Delta;
 
-double complex cubicInterp(double complex p0,double complex p1,double complex p2,double complex p3, double x) {
-    return p1 + 0.5 * x*(p2 - p0 + x*(2.0*p0 - 5.0*p1 + 4.0*p2 - p3 + x*(3.0*(p1 - p2) + p3 - p0)));
+int cubic=1,useAsymCoef=0, debug=0;
+
+static inline double complex cubicInterp(double complex p0,double complex p1,double complex p2,double complex p3, double x) {
+	if(cubic)
+		return p1 + 0.5 * x*(p2 - p0 + x*(2.0*p0 - 5.0*p1 + 4.0*p2 - p3 + x*(3.0*(p1 - p2) + p3 - p0)));
+	else
+		return p1*(1.-x)+x*p2;
 }
 
-double complex asymExponent(double tau, double x, double sqrtNf){
+double complex asymExponent(double tau, double x, double lsqrtNf){
 	double c1=0.0243615448342451073975190249505015144289430415363799596395;
-	return (  3/(36*M_PI*M_PI)  -  c1*pow(fabs(x)*sqrtNf,1./3)*cpow(1+I*tau/x,-2./3)  ) / sqrtNf;
+	complex double res=(  3/(36*M_PI*M_PI)  -  c1*pow(fabs(x)*lsqrtNf,1./3)*cpow(1+I*tau/x,-2./3)  ) / lsqrtNf;
+	if(useAsymCoef){
+		double r=sqrt(tau*tau + x*x);
+		double phi=atan(fabs(x/tau));
+		double s=(acn-1)*phi/(M_PI/2.);
+		int i=s;
+		s-=i;
+		double complex coef=acs[i]*(1.-s)+acs[i+1]*s;
+		if(x*tau<0.)coef=conj(coef);
+		
+		res=r*pow(lsqrtNf*r,-4./3)*coef/phi;
+		res=r*pow(lsqrtNf,-28./3)*pow(lsqrtNf*r,-8./3)*coef/phi;
+		res=pow(lsqrtNf*r,-1./3)*coef/phi / lsqrtNf;
+	}
+	return res;
 }
 
-double complex GEnum(double tau, double x, double sqrtNf){
+double complex GEnum(double tau, double x, double lsqrtNf){
 	//tau=tau*(I+0.01);
 	//return cexp((tau+I*x)*(tau+I*x)/(12*M_PI*csqrt(tau*tau+x*x)))/(2.*M_PI*(x*I - tau));
 	
 	//return sin(tau)*sin(tau)/(tau*tau)*exp(-x*x);// Benchmarking function
-    double sr=x*x+tau*tau;
+	if(tau==0. || x==0. || lsqrtNf==0.){
+		fprintf(stderr, "Tried to evaluate GE for one of the arguments = 0.\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	double sr=x*x+tau*tau;
     int g=nPolarGrid-1;
     
     double phi=atan(fabs(x/tau));
@@ -56,7 +82,7 @@ double complex GEnum(double tau, double x, double sqrtNf){
     radii=nrs[g];
     angles=nphis[g];
     polarData=polarDatas[g];
-    rmax=rss[g][radii-1];
+    rmax=rss[g][radii-1] / lsqrtNf;
     phimin=phiss[g][0];
     phimax=phiss[g][angles-1];
     
@@ -66,7 +92,7 @@ double complex GEnum(double tau, double x, double sqrtNf){
     else{
         double r=sqrt(sr);
         
-        double s=(radii-1)*r*sqrtNf/rmax;
+        double s=(radii-1)*r/rmax;
         double t=(angles-1)*(phi-(phimin))/(phimax-(phimin));
         
         int i=s; s-=i;
@@ -150,7 +176,9 @@ int main(int argc, char *argv[]){
         return 1;
     }
     FILE *fp;
-    
+	
+
+	printf(KGRN"Loading input file...\n"KRESET);
     if(! (fp = fopen(argv[1], "r")))
     {
         fprintf(stderr, "Unable to open input file \"%s\".\n",argv[1]);
@@ -162,7 +190,7 @@ int main(int argc, char *argv[]){
 		fprintf(stderr, "Can at most have 10 input files.\n");
 		return 1;
 	}
-    char fileName[MAX_PG+1][255];
+    char fileName[MAX_PG+1][1024];
     for(int g=0;g<nPolarGrid+1;g++)
         fscanf(fp, "%s\n", fileName[g]);
     fscanf(fp, "%d\n", &nThreads);
@@ -170,18 +198,34 @@ int main(int argc, char *argv[]){
     sqrtNf=sqrt(Nf);
     fscanf(fp, "%lf\n", &L);
     fscanf(fp, "%d\n", &n);  n=1<<n;
-	//fscanf(fp, "%lf\n", &cL);
-	//fscanf(fp, "%d\n", &cn);
-	//fscanf(fp, "%lf\n", &alpha);
-	cn=51; //21 still seems to show some aliasing
-	alpha=2.5; //UV aliasing suppresed by exp(-2.5^2) ~ .2%
+	fclose(fp);
+	
+	alpha=3.5;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
 	double alpha2=alpha; //Cut off kernel at exp(-2.5^2) ~ .2%
 	alpha3=alpha; //Have window function be exp(-2.5^2) at spatial edges
 	csigma=4*alpha*L/(n*M_PI);
 	cL=alpha2*csigma;
+	double pointsPerWidth=10.;
+	cn=2*pointsPerWidth*cL/csigma;//51; //21 still seems to show some aliasing
 
+	printf(KBLU" * L*sqrt(Nf) = %g\n"KRESET,L*sqrt(Nf));
+	printf(KBLU" * 2*L*sqrt(Nf)/(n-1) = %g\n"KRESET,2*L*sqrt(Nf)/(n-1));
+	printf(KBLU" * cn = %d\n"KRESET,cn);
 	
-    fclose(fp);
+	if(useAsymCoef){
+		printf(KGRN"Loading asymptotic coefficents...\n"KRESET);
+		if(! (fp = fopen("/Users/petter/asymCoef","r")))
+		{
+			fprintf(stderr, "Unable to open asymptotic coefficents file.\n");
+			return 1;
+		}
+		fread(&acn,sizeof(int),1,fp);
+		printf(KBLU" * Loading %d coefficients...\n"KRESET,acn);
+		acs=malloc(sizeof(complex double)*acn);
+		fread(acs,sizeof(complex double),acn,fp);
+		fclose(fp);
+		printf(KBLU" * Done\n"KRESET);
+	}
 
     for(int g=0;g<nPolarGrid;g++){
         if(! (fp = fopen(fileName[g], "r")))
@@ -199,8 +243,8 @@ int main(int argc, char *argv[]){
               fscanf(fp, "%lf\n", &rss[g][i]);
         for(int i=0;i<nphis[g];i++)
               fscanf(fp, "%lf\n", &phiss[g][i]);
-        printf(KBLU" * %d radii between %g and %g\n",nrs[g],rss[g][0],rss[g][nrs[g]-1]);
-		printf(KBLU" * %d angles between %g and %g\n",nphis[g],phiss[g][0],phiss[g][nphis[g]-1]);
+        printf(KBLU" * %d radii between %g and %g\n"KRESET,nrs[g],rss[g][0],rss[g][nrs[g]-1]);
+		printf(KBLU" * %d angles between %g and %g\n"KRESET,nphis[g],phiss[g][0],phiss[g][nphis[g]-1]);
         polarDatas[g]=malloc(sizeof(double complex)*nrs[g]*nphis[g]);
         
         for(int i=0;i<nrs[g];i++)
@@ -211,14 +255,35 @@ int main(int argc, char *argv[]){
                 polarDatas[g][i+nrs[g]*j]=re+I*im;
             }
         fclose(fp);
+		
+		if(debug && useAsymCoef){
+			double sqrtNf=sqrt(Nf);
+			double r=rss[g][nrs[g]-1]/sqrtNf;
+			printf(KCYN"polarGrid\tasym2\tasym3\n"KRESET);
+			for(int j=0;j<nphis[g];j++){
+				double phi=phiss[g][j];
+
+				complex double e1=r*polarDatas[g][nrs[g]-1+nrs[g]*j];
+				useAsymCoef=0;
+				complex double e2=asymExponent(r*cos(phi), r*sin(phi), sqrtNf);
+				useAsymCoef=1;
+				complex double e3=asymExponent(r*cos(phi), r*sin(phi), sqrtNf);
+				
+				e1=e1-e2;
+				e2=e3/e1;
+				printf(KCYN"%8.8g + i%8.8g \t%8.8g + i%8.8g\n"KRESET, creal(e1),cimag(e1), creal(e2),cimag(e2));
+				//printf(KCYN"%8.8g + i%8.8g \t%8.8g + i%8.8g \t%8.8g + i%8.8g\n"KRESET, creal(e1),cimag(e1), creal(e2),cimag(e2), creal(e3),cimag(e3));
+			}
+			
+		}
     }
 	
 	printf(KGRN"Checking if polar grid sufficiently large...\n"KRESET);
 	double maxErr=-1, maxVal=-1, phiWorst;
-	for(int g=0;g<2;g++)
+	for(int g=0;g<nPolarGrid;g++)
 	for(int i=0;i<nphis[g];i++){
 		double phi=phiss[g][i];
-		if(g<1 && phi<phiss[g+1][nphis[g+1]-2])
+		if(g<nPolarGrid-1 && phi<phiss[g+1][nphis[g+1]-2])
 			continue;
 		double r=rss[g][nrs[g]-1]/sqrtNf;
 		complex double e1=asymExponent(r*cos(phi), r*sin(phi), sqrtNf);
@@ -234,27 +299,35 @@ int main(int argc, char *argv[]){
 		//printf("%lg / %lg\n",err,val);
 	}
 	double maxRelErr=maxErr/maxVal;
-	printf(KBLU" * Max relative difference of expansions is %lg%%\n",maxRelErr*100);
+	printf(KBLU" * Max relative difference of expansions is %lg%%, at phi=%g\n"KRESET,maxRelErr*100,phiWorst);
 	if(0.01<maxRelErr){
-		fprintf(stderr,"Error too large at phi=%g, increase polar grid size.\n",phiWorst);
+		fprintf(stderr,"Error too large, increase polar grid size.\n");
 		return 1;
 	}
 	
 	printf(KGRN"Preparing sampling...\n"KRESET);
-	nFactor=1+(cn*L/cL/n);  // How much denser we sample for convolution than fft
-	delta=2*L/((n-1)*nFactor);
+	nFactor=1+((int)(cn*L/cL/n))/2*2;  // (int) how much denser we sample for convolution than fft
+	delta=2*L/((n-1)*nFactor); //about what delta would be
 	cn2=cL/delta;// How many points we actually use for the kernel, supposed to be
 	cn2=1+2*cn2;				// slightly larger than cn so points end up at points we can reuse.
 	// We also want cn2 to be odd.
 	cL2=(cn2-1)/2*delta; //How large our kernel actually is
 	
-	printf(KBLU" * Extra factor of samples needed for low-pass: %d*%d\n",nFactor,nFactor);
-	printf(KBLU" * Kernel size in samples: %d*%d\n",cn2,cn2);
+	printf(KBLU" * Extra factor of samples needed for low-pass: %d*%d\n"KRESET,nFactor,nFactor);
+	printf(KBLU" * Kernel size in samples: %d*%d\n"KRESET,cn2,cn2);
+	
+	int nTotal=cn2+(n-1)*nFactor; //How many samples we will actually have to calculate with GE per dimension
+	if(nTotal/2*2!=nTotal)
+	{
+		fprintf(stderr, "Internal error, nTotal should be even.\n");
+		return 1;
+	}
 	
 	//precompute kernel
 	double kerNorm=0;
 	ker=malloc(sizeof(double)*cn2*cn2);
 	cDelta=2*cL2/(cn2-1);
+	
 	for(int ci=0;ci<cn2;ci++)
 		for(int cj=0;cj<cn2;cj++){
 			double dx=-cL2 + ci*cDelta;
@@ -276,12 +349,12 @@ int main(int argc, char *argv[]){
 		fprintf(stderr, "Not enough memory\n");
 		return 1;
 	}
-	printf(KBLU" * Sucessfully allocated %d MB\n",(int)(sizeof(double complex)*2*n*n/(1024*1024)));
-	printf(KBLU" * Using this memory to find best fft scheme to use later\n");
+	printf(KBLU" * Sucessfully allocated %d MB\n"KRESET,(int)(sizeof(double complex)*2*n*n/(1024*1024)));
+	printf(KBLU" * Using this memory to find best fft scheme to use later\n"KRESET);
 	fftw_plan fftPlan = fftw_plan_dft_2d(n,n, Gs, Gso, FFTW_FORWARD, FFTW_MEASURE);
 	
 	printf(KGRN"Sampling G...\n"KRESET);
-    printf(KBLU" * Starting %d threads...\n", nThreads);
+    printf(KBLU" * Starting %d threads...\n"KRESET, nThreads);
     int *startPoints=malloc(sizeof(int)*nThreads);;
     pthread_t *workers=malloc(sizeof(pthread_t)*nThreads);
     for(int i=0;i<nThreads;i++){
@@ -305,28 +378,34 @@ int main(int argc, char *argv[]){
 	double omegaMax=M_PI*(n-1)*(n-1)/(2*L*n);
 	double complex *phases=malloc(sizeof(double complex)*n);
 	
-	printf(KBLU" * Prefixing phases\n");
+	printf(KBLU" * Prefixing phases\n"KRESET);
 	for(int i=0;i<n;i++)
 		phases[i]=cexp(I*(omegaMax*L*2*i/(n-1)-L*omegaMax*.5));
 	for(int i=0;i<n;i++)
 		for(int j=0;j<n;j++)
 			Gs[i+j*n]*=phases[i]*phases[j];
 	
-	printf(KBLU" * Running fftw3\n");
+	printf(KBLU" * Running fftw3\n"KRESET);
 	fftw_execute(fftPlan);
 	fftw_free(Gs);
-	printf(KBLU" * Postfixing phases\n");
+	
+	printf(KBLU" * Postfixing phases\n"KRESET);
 	for(int i=0;i<n;i++)
 		for(int j=0;j<n;j++)
-			Gs[i+j*n]*=phases[i]*phases[j];
+			Gso[i+j*n]*=phases[i]*phases[j];
 	
-	printf(KBLU" * Downsampling, normalizing, and correcting for UV filter\n");
+	printf(KBLU" * Downsampling, normalizing, and correcting for UV filter\n"KRESET);
 	fftw_destroy_plan(fftPlan);
 	int stride=1<<2;
 	int prunedN=n/2/stride;
 	double deltaOmegaPruned=stride*2*omegaMax/(n-1);
 	double omegaMaxPruned=deltaOmegaPruned*(prunedN-1)/2;
 	double complex *GsPruned = malloc(sizeof(double complex)*prunedN*prunedN);
+	if(!GsPruned){
+		fprintf(stderr, "Not enough memory\n");
+		return 1;
+	}
+	
 	for(int i=0;i<prunedN;i++)
 		for(int j=0;j<prunedN;j++){
 			double omega=-omegaMaxPruned+i*deltaOmegaPruned;
@@ -342,7 +421,7 @@ int main(int argc, char *argv[]){
     printf(KGRN"Saving result...\n"KRESET);
 	
 	char fn[200];
-	snprintf(fn,200,"%s_%g_%d_%g",fileName[2],Nf,n,L);
+	snprintf(fn,200,"%s_%g_%d_%g",fileName[nPolarGrid],Nf,n,L);
     fp=fopen(fn,"w");
 	fwrite(&Nf,sizeof(double),1,fp);
 	fwrite(&L,sizeof(double),1,fp);
@@ -357,7 +436,7 @@ int main(int argc, char *argv[]){
 	fwrite(GsPruned,sizeof(double complex),prunedN*prunedN,fp);
 
     fclose(fp);
-    printf(KBLU" * Done\n");
+    printf(KBLU" * Done\n"KRESET);
 	gettimeofday(&tp, NULL);
 	long int end = tp.tv_sec * 1000 + tp.tv_usec / 1000;
 	printf(KYEL"Total wall time: %.1f seconds\n"KRESET,((double)(end - begin))/1000);
