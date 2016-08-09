@@ -177,6 +177,11 @@ int main(int argc, char *argv[]){
     }
     FILE *fp;
 	
+	if(fftw_init_threads()==0)
+	{
+		fprintf(stderr, "Multithreaded fftw not available.\n");
+		return 1;
+	}
 
 	printf(KGRN"Loading input file...\n"KRESET);
     if(! (fp = fopen(argv[1], "r")))
@@ -351,6 +356,7 @@ int main(int argc, char *argv[]){
 	}
 	printf(KBLU" * Sucessfully allocated %d MB\n"KRESET,(int)(sizeof(double complex)*2*n*n/(1024*1024)));
 	printf(KBLU" * Using this memory to find best fft scheme to use later\n"KRESET);
+	fftw_plan_with_nthreads(nThreads);
 	fftw_plan fftPlan = fftw_plan_dft_2d(n,n, Gs, Gso, FFTW_FORWARD, FFTW_ESTIMATE);
 	
 	printf(KGRN"Sampling G...\n"KRESET);
