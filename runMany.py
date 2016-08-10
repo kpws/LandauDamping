@@ -2,18 +2,18 @@ import multiprocessing
 from subprocess import call
 import os
 
-runName='2'
+runName='5'
 dd='/marisdata/petter'
 inFiles=[dd+'/pgsOutput'+str(i) for i in [1,2,3]]
-L=2000
-nExp=16
+L=1000
+nExp=15
 
 cores=multiprocessing.cpu_count()
 wd=os.getcwd();
 outFile=dd+'/cgsOutput_'+runName
-runFile=wd+'/run_'+runName
+runFile=wd+'/run_'+runName+'.tmp'
 
-for Nf in [.1,1.,10,.03,.3,3]:
+for Nf in [0.001]:
     with  open(runFile, 'w') as f:
         f.write(str(len(inFiles))+'\n')
         for inF in inFiles: f.write(inF+'\n')
