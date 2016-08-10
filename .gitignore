@@ -2,3 +2,4 @@ pgs
 cgs
 *.swp
 *.tmp
+cgsOutput/*

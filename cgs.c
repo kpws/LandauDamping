@@ -349,7 +349,7 @@ int main(int argc, char *argv[]){
 
 	printf(KGRN"Allocating memory to hold real space G...\n"KRESET);
 	Gs=fftw_malloc(sizeof(fftw_complex)*n*n);
-	Gso=fftw_malloc(sizeof(fftw_complex)*n*n);
+	Gso=fftw_malloc(sizeof(fftw_complex)*n*n);//maybe fftw can actually do it in-place for these sizes?
 	if(!Gso){
 		fprintf(stderr, "Not enough memory\n");
 		return 1;
@@ -393,7 +393,7 @@ int main(int argc, char *argv[]){
 	
 	printf(KBLU" * Running fftw3\n"KRESET);
 	fftw_execute(fftPlan);
-	fftw_free(Gs);
+	//fftw_free(Gs);
 	
 	printf(KBLU" * Postfixing phases\n"KRESET);
 	for(int i=0;i<n;i++)
@@ -401,7 +401,7 @@ int main(int argc, char *argv[]){
 			Gso[i+j*n]*=phases[i]*phases[j];
 	
 	printf(KBLU" * Downsampling, normalizing, and correcting for UV filter\n"KRESET);
-	fftw_destroy_plan(fftPlan);
+	//fftw_destroy_plan(fftPlan);
 	int stride=1<<2;
 	int prunedN=n/2/stride;
 	double deltaOmegaPruned=stride*2*omegaMax/(n-1);
@@ -422,7 +422,7 @@ int main(int argc, char *argv[]){
 												Gso[ (n/4 + stride/2 -0 +i*stride)  +  (n/4+  stride/2 -0 + j*stride)*n ]  )/4*Delta*Delta * exp((omega*omega + kx*kx)*(csigma*csigma)/4);
 			//GsPruned[i+j*prunedN]=Gs[ (n/4 + stride/2  +i*stride)  +  (n/4+ stride/2  + j*stride)*n ];// * exp((omega*omega + kx*kx)/(4*csigma*csigma));
 		}
-	fftw_free(Gso);
+	//fftw_free(Gso);
 	
     printf(KGRN"Saving result...\n"KRESET);
 	
