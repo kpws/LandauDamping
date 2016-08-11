@@ -205,12 +205,12 @@ int main(int argc, char *argv[]){
     fscanf(fp, "%d\n", &n);  n=1<<n;
 	fclose(fp);
 	
-	alpha=3.7;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
+	alpha=3.0;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
 	double alpha2=alpha; //Cut off kernel at exp(-2.5^2) ~ .2%
 	alpha3=alpha; //Have window function be exp(-2.5^2) at spatial edges
 	csigma=4*alpha*L/(n*M_PI);
 	cL=alpha2*csigma;
-	double pointsPerWidth=12.;
+	double pointsPerWidth=16.;
 	cn=2*pointsPerWidth*cL/csigma;//51; //21 still seems to show some aliasing
 
 	printf(KBLU" * L*sqrt(Nf) = %g\n"KRESET,L*sqrt(Nf));
@@ -402,7 +402,7 @@ int main(int argc, char *argv[]){
 	
 	printf(KBLU" * Downsampling, normalizing, and correcting for UV filter\n"KRESET);
 	//fftw_destroy_plan(fftPlan);
-	int stride=1<<2;
+	int stride=1<<3;
 	int prunedN=n/2/stride;
 	double deltaOmegaPruned=stride*2*omegaMax/(n-1);
 	double omegaMaxPruned=deltaOmegaPruned*(prunedN-1)/2;
