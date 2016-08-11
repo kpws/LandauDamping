@@ -22,6 +22,21 @@ params = {'backend': 'ps',
 
 rcParams.update(params)
 
+
+def grid_selfmade(ax,minor=False):
+	y_axis=ax.yaxis.get_view_interval()
+	for xx in ax.xaxis.get_ticklocs():
+		ax.plot([xx,xx],y_axis,linestyle=':',color='black',linewidth=0.5,zorder=0)
+	if minor==True:
+		for xx in ax.xaxis.get_ticklocs(minor=True):
+			ax.plot([xx,xx],y_axis,linestyle=':',color='black',linewidth=0.5,zorder=0)
+	x_axis=ax.xaxis.get_view_interval()
+	for yy in ax.yaxis.get_ticklocs():
+		ax.plot(x_axis,[yy,yy],linestyle=':',color='black',linewidth=0.5,zorder=0,)
+	if minor==True:
+		for yy in ax.yaxis.get_ticklocs(minor=True):
+			ax.plot(x_axis,[yy,yy],linestyle=':',color='black',linewidth=0.5,zorder=0)
+
 def fig(i,size=14,aspect=None):
     c=0.393701#inches per cm
     if aspect==None:

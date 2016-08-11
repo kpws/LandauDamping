@@ -30,7 +30,7 @@ double complex *acs;
 int nFactor, cn2;
 double delta, cL2, *ker, cDelta, Delta;
 
-int cubic=1,useAsymCoef=0, debug=0;
+int cubic=1,useAsymCoef=0, debug=0, benchmark=1;
 
 static inline double complex cubicInterp(double complex p0,double complex p1,double complex p2,double complex p3, double x) {
 	if(cubic)
@@ -66,6 +66,13 @@ double complex GEnum(double tau, double x, double lsqrtNf){
 	if(tau==0. || x==0. || lsqrtNf==0.){
 		fprintf(stderr, "Tried to evaluate GE for one of the arguments = 0.\n");
 		exit(EXIT_FAILURE);
+	}
+	
+	if(benchmark){
+		double gamma2over3=1.354117939426400416945288;
+		return -0.5*I/(cexp(pow(abs(x),1./3)*gamma2over3/
+							   (3.*pow(2,2./3)*sqrt(3.)*pow(M_PI,5./3)*
+								pow(lsqrtNf*lsqrtNf,1./3)*cpow(1 + (I*t)/x,2./3)))*M_PI*(I*t + x));
 	}
 	
 	double sr=x*x+tau*tau;

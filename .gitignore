@@ -3,3 +3,4 @@ cgs
 *.swp
 *.tmp
 cgsOutput/*
+figs/*
