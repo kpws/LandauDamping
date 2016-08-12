@@ -21,7 +21,13 @@ def Gquenchedv1(w,kx):
 
 def SlargeNf(Nf, w):
 	return 1j*np.sign(w)*np.absolute(w)**(2./3)/((2*pi)**(5./3)*sqrt(3)*Nf**(1./3))
-	
+
+def loadGBenchmark(name, Nf):
+	with open('benchmarkRefOutput/'+name+'_Nf='+str(Nf), 'rb') as f:
+		n = np.fromfile(f, dtype=np.int32, count=1)[0]
+		wm = np.fromfile(f, dtype=np.float64, count=1)[0]
+		v = np.fromfile(f, dtype=np.complex128, count=n*n).reshape((n,n)).transpose()
+	return (wm,v)
 
 def loadG(name, Nf, L, n2):
 	n=2**n2;
@@ -38,9 +44,10 @@ def loadG(name, Nf, L, n2):
 	return (wm,v)
 
 def getGfun(Gob):
-	x=linspace(-Gob[0],Gob[0],len(Gob[1]))
+	n=len(Gob[1])
+	ws=linspace(-Gob[0],Gob[0],n).reshape((1,n))
 	#scipy.interpolate.RectBivariateSpline is perhaps faster
-	return interpolate.interp2d(x,x,Gob[1],kind='cubic')
+	return lambda w,kx:interpolate.interp2d(ws,ws,Gob[1].real,kind='cubic')(w,kx) + 1j*interpolate.interp2d(ws,ws,Gob[1].imag,kind='cubic')(w,kx)
 
 def getSfun(Gob):
 	n=len(Gob[1])

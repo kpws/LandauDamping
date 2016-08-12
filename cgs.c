@@ -70,9 +70,12 @@ double complex GEnum(double tau, double x, double lsqrtNf){
 	
 	if(benchmark){
 		double gamma2over3=1.354117939426400416945288;
-		return -0.5*I/(cexp(pow(abs(x),1./3)*gamma2over3/
-							   (3.*pow(2,2./3)*sqrt(3.)*pow(M_PI,5./3)*
-								pow(lsqrtNf*lsqrtNf,1./3)*cpow(1 + (I*t)/x,2./3)))*M_PI*(I*t + x));
+		return -I/
+			(
+				cexp(
+					  pow(fabs(x),1./3) * gamma2over3 / (3. * pow(2.,2./3) * sqrt(3.) * pow(M_PI,5./3) * pow(lsqrtNf*lsqrtNf,1./3)*cpow(1 + (I*t)/x,2./3))
+					 ) * 2.*M_PI*(I*t + x)
+			 );
 	}
 	
 	double sr=x*x+tau*tau;
