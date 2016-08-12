@@ -2,5 +2,6 @@ pgs
 cgs
 *.swp
 *.tmp
+*.pyc
 cgsOutput/*
 figs/*

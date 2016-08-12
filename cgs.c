@@ -72,7 +72,7 @@ double complex GEnum(double tau, double x, double lsqrtNf){
 		double gamma2over3=1.354117939426400416945288;
 		return -0.5*I/(cexp(pow(abs(x),1./3)*gamma2over3/
 							   (3.*pow(2,2./3)*sqrt(3.)*pow(M_PI,5./3)*
-								pow(lsqrtNf*lsqrtNf,1./3)*cpow(1 + (I*t)/x,2./3)))*M_PI*(I*t + x));
+								pow(lsqrtNf*lsqrtNf,1./3)*cpow(1 + (I*tau)/x,2./3)))*M_PI*(I*tau + x));
 	}
 	
 	double sr=x*x+tau*tau;
@@ -212,12 +212,12 @@ int main(int argc, char *argv[]){
     fscanf(fp, "%d\n", &n);  n=1<<n;
 	fclose(fp);
 	
-	alpha=3.0;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
+	alpha=3.7;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
 	double alpha2=alpha; //Cut off kernel at exp(-2.5^2) ~ .2%
 	alpha3=alpha; //Have window function be exp(-2.5^2) at spatial edges
 	csigma=4*alpha*L/(n*M_PI);
 	cL=alpha2*csigma;
-	double pointsPerWidth=16.;
+	double pointsPerWidth=12.;
 	cn=2*pointsPerWidth*cL/csigma;//51; //21 still seems to show some aliasing
 
 	printf(KBLU" * L*sqrt(Nf) = %g\n"KRESET,L*sqrt(Nf));

@@ -2,10 +2,10 @@ import multiprocessing
 from subprocess import call
 import os
 
-runName='7'
+runName='benchmark1'
 dd='/marisdata/petter'
 inFiles=[dd+'/pgsOutput'+str(i) for i in [1,2,3]]
-L=1000
+L=2000
 nExp=15
 
 cores=multiprocessing.cpu_count()
