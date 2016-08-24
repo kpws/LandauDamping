@@ -3,4 +3,5 @@ cgs
 *.swp
 *.tmp
 cgsOutput/*
+benchmarkRefOutput/*
 figs/*

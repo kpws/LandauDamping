@@ -3,23 +3,25 @@ import pylab as pl
 import numpy as np
 import matplotlib.pyplot as plt
 from fig import fig, saveFig, fill_between, grid_selfmade
-
+'''
 Nfs=[.01,.1,1,10]
-#ws=[.05,1,12]
-
-#L=8000
-#name='4'
-#ws=[.01,.1,3]
-
-L=1000
-name='5'
+L=2000
+name='run10'
 ws=[.01,1,20]
+n2=15
+'''
+Nfs=[.01]
+L=10000
+name='run_sub1'
+ws=[.01,1,20]
+aa=True
+n2=11
 
-Gobs=[loadG(name, Nf, L, 15) for Nf in Nfs]
-Ss=[getSfun(Gob) for Gob in Gobs]
+Gobs=[loadG(name, Nf, L, n2) for Nf in Nfs]
+Ss=[getSfun(Gob, addAsym=aa) for Gob in Gobs]
 wm=Gobs[0][0]
 print('Datapoints: '+str(len(Gobs[0][1])))
-N=1501
+N=200
 xs=np.linspace(-wm, wm, N)
 wss=reduce(lambda a,b:a+', '+b,map(str,ws))
 
@@ -31,7 +33,7 @@ for r in [0,1]:
 		kx=ws[i]
 		cf=[np.real,np.imag][r]
 		for j in range(len(Nfs)):
-			pl.plot(xs, cf(Ss[j](xs,kx)),label='$N_fk_f='+str(Nfs[j])+r'\lambda^2$' if i==0 else '',color=colors[j])
+			pl.plot(xs, [cf(Ss[j](x,kx)) for x in xs],label='$N_fk_f='+str(Nfs[j])+r'\lambda^2$' if i==0 else '',color=colors[j])
 			if r==1:
 				pl.plot(xs, cf(SlargeNf(Nfs[j],xs)),color=colors[j],linestyle='--')
 		pl.plot(xs, cf([Squenchedv1(w,kx) for w in xs]),label=(r'$N_fk_f=0$' if i==0 else ''),color='black')
@@ -55,7 +57,7 @@ for r in [0,1]:
 		w=ws[i]
 		cf=[np.real,np.imag][r]
 		for j in range(len(Nfs)):
-			pl.plot(xs, cf(Ss[j](w,xs)),label='$N_fk_f='+str(Nfs[j])+r'\lambda^2$' if i==0 else '',color=colors[j])
+			pl.plot(xs, [cf(Ss[j](w,x)) for x in xs],label='$N_fk_f='+str(Nfs[j])+r'\lambda^2$' if i==0 else '',color=colors[j])
 			#iif r==1:
 			#	pl.plot([-wm,wm], 2*[cf(SlargeNf(Nfs[j],w))],color=colors[j],linestyle='--')
 		pl.plot(xs, cf([Squenchedv1(w,kx) for kx in xs]),label=(r'$N_fk_f=0$' if i==0 else ''),color='black')
