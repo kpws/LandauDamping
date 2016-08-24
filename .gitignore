@@ -2,6 +2,8 @@ pgs
 cgs
 *.swp
 *.tmp
+*.pyc
 cgsOutput/*
 benchmarkRefOutput/*
 figs/*
+bin/*
