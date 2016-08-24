@@ -21,16 +21,16 @@
 //1=small phi range, large r range
 double complex *polarDatas[MAX_PG];
 fftw_complex *Gs, *Gso;
-int nphis[MAX_PG],nrs[MAX_PG],n,cn,nThreads,nPolarGrid;
+long nphis[MAX_PG],nrs[MAX_PG],n,cn,nThreads,nPolarGrid;
 double *phiss[MAX_PG], *rss[MAX_PG],Nf,sqrtNf,L,cL,alpha,alpha3,csigma;
 double cs=1.;
-int acn;
+long acn;
 double complex *acs;
 
-int nFactor, cn2;
+long nFactor, cn2;
 double delta, cL2, *ker, cDelta, Delta;
 
-int cubic=1,useAsymCoef=0, debug=0, benchmark=1;
+const long cubic=1,useAsymCoef=0, debug=0, benchmark=0, inPlace=1, subtractAsym=1, subtractFree=0;
 
 static inline double complex cubicInterp(double complex p0,double complex p1,double complex p2,double complex p3, double x) {
 	if(cubic)
@@ -42,11 +42,11 @@ static inline double complex cubicInterp(double complex p0,double complex p1,dou
 double complex asymExponent(double tau, double x, double lsqrtNf){
 	double c1=0.0243615448342451073975190249505015144289430415363799596395;
 	complex double res=(  3/(36*M_PI*M_PI)  -  c1*pow(fabs(x)*lsqrtNf,1./3)*cpow(1+I*tau/x,-2./3)  ) / lsqrtNf;
-	if(useAsymCoef){
+	/*if(useAsymCoef){
 		double r=sqrt(tau*tau + x*x);
 		double phi=atan(fabs(x/tau));
 		double s=(acn-1)*phi/(M_PI/2.);
-		int i=s;
+		long i=s;
 		s-=i;
 		double complex coef=acs[i]*(1.-s)+acs[i+1]*s;
 		if(x*tau<0.)coef=conj(coef);
@@ -54,7 +54,7 @@ double complex asymExponent(double tau, double x, double lsqrtNf){
 		res=r*pow(lsqrtNf*r,-4./3)*coef/phi;
 		res=r*pow(lsqrtNf,-28./3)*pow(lsqrtNf*r,-8./3)*coef/phi;
 		res=pow(lsqrtNf*r,-1./3)*coef/phi / lsqrtNf;
-	}
+	}*/
 	return res;
 }
 
@@ -70,16 +70,19 @@ double complex GEnum(double tau, double x, double lsqrtNf){
 	
 	if(benchmark){
 		double gamma2over3=1.354117939426400416945288;
-		return -I/
+		complex double G= -I/
 			(
 				cexp(
-					  pow(fabs(x),1./3) * gamma2over3 / (3. * pow(2.,2./3) * sqrt(3.) * pow(M_PI,5./3) * pow(lsqrtNf*lsqrtNf,1./3)*cpow(1 + (I*t)/x,2./3))
-					 ) * 2.*M_PI*(I*t + x)
+					  pow(fabs(x),1./3) * gamma2over3 / (3. * pow(2.,2./3) * sqrt(3.) * pow(M_PI,5./3) * pow(lsqrtNf*lsqrtNf,1./3)*cpow(1 + (I*tau)/x,2./3))
+					 ) * 2.*M_PI*(I*tau + x)
 			 );
+		if(subtractFree)G-=-I/ ( 2.*M_PI*(I*tau + x) );
+
+		return G;
 	}
 	
 	double sr=x*x+tau*tau;
-    int g=nPolarGrid-1;
+    long g=nPolarGrid-1;
     
     double phi=atan(fabs(x/tau));
 	
@@ -88,7 +91,7 @@ double complex GEnum(double tau, double x, double lsqrtNf){
     
     double complex *polarData;
     double rmax,phimin,phimax;
-    int radii,angles;
+    long radii,angles;
     radii=nrs[g];
     angles=nphis[g];
     polarData=polarDatas[g];
@@ -98,15 +101,20 @@ double complex GEnum(double tau, double x, double lsqrtNf){
     
     double complex e;
     if(rmax*rmax*cs*cs<sr)
-        e=asymExponent(tau, x, sqrtNf);
+    {
+		if(subtractAsym)
+			return 0.;
+		else
+			e=asymExponent(tau, x, sqrtNf);
+	}
     else{
         double r=sqrt(sr);
         
         double s=(radii-1)*r/rmax;
         double t=(angles-1)*(phi-(phimin))/(phimax-(phimin));
         
-        int i=s; s-=i;
-        int j=t; t-=j;
+        long i=s; s-=i;
+        long j=t; t-=j;
         
         //Bicubic interpolation
         double complex p;
@@ -123,38 +131,38 @@ double complex GEnum(double tau, double x, double lsqrtNf){
         e=r*p;
         if(x*tau<0.)e=conj(e);
     }
-	//return /*cexp(e)*/ exp(-.005*(x*x+tau*tau)); //1./(2.*M_PI*(x*I - tau));
-	return cexp(e)/(2.*M_PI*(x*I - tau));
-	//return  1./(2.*M_PI*(x*I - tau));
+	complex double ret=cexp(e)/(2.*M_PI*(x*I - tau));
+	if(subtractAsym)ret-=cexp(asymExponent(tau, x, sqrtNf))/(2.*M_PI*(x*I - tau));
+	return ret; 
 }
 
 void *calculateGs(void *rStartP)
 {
-	int iStart=*(int*)rStartP*n/nThreads;
-	int iEnd=(*(int*)rStartP+1)*n/nThreads;
+	long iStart=*(long*)rStartP*n/nThreads;
+	long iEnd=(*(long*)rStartP+1)*n/nThreads;
 	
-	int iSize=cn2+(iEnd-iStart-1)*nFactor;
+	long iSize=cn2+(iEnd-iStart-1)*nFactor;
 	complex double *buffer=malloc(sizeof(complex double)*cn2*iSize);
-	int bufferJ=0;	//next written line in buffer. If the kernel center 'rolls' in the buffer,
+	long bufferJ=0;	//next written line in buffer. If the kernel center 'rolls' in the buffer,
 					//then we can avoid some read/writes
-	int jj=0;//our place in Gs
-	int operc=-1;
-	for(int j=0;j<cn2+(n-1)*nFactor;j++){
-		for(int i=0;i<iSize;i++){
+	long jj=0;//our place in Gs
+	long operc=-1;
+	for(long j=0;j<cn2+(n-1)*nFactor;j++){
+		for(long i=0;i<iSize;i++){
 			buffer[i+bufferJ*iSize]=GEnum( -L-cL2 + (iStart*nFactor + i)*cDelta, -L-cL2 + j*cDelta,sqrtNf);
 		}
 		bufferJ++;
 		if(bufferJ>=cn2)bufferJ-=cn2;
-		int fromStart=j+1-cn2;
+		long fromStart=j+1-cn2;
 		
 		if(0<=fromStart  &&  fromStart%nFactor==0)
 		{
-			for(int ii=iStart;ii<iEnd;ii++){
+			for(long ii=iStart;ii<iEnd;ii++){
 				complex double acc=0;
-				for(int cj=0;cj<cn2;cj++){
-					int bj=(nFactor*jj+cj)%cn2;
-					for(int ci=0;ci<cn2;ci++){
-						int bi=nFactor*(ii-iStart)+ci;
+				for(long cj=0;cj<cn2;cj++){
+					long bj=(nFactor*jj+cj)%cn2;
+					for(long ci=0;ci<cn2;ci++){
+						long bi=nFactor*(ii-iStart)+ci;
 						acc+=ker[ci+cn2*cj] * buffer[bi+bj*iSize];
 					}
 				}
@@ -163,8 +171,8 @@ void *calculateGs(void *rStartP)
 				Gs[ii+jj*n]=acc*exp(-alpha3*(sx*sx+sy*sy));
 			}
 			jj++;
-			if(*(int*)rStartP==0){
-				int perc=100.*(jj)/(n-1);
+			if(*(long*)rStartP==0){
+				long perc=100.*(jj)/(n-1);
 				if(perc!=operc){
 					printf("   %d%%   \r", perc );
 					fflush(stdout);
@@ -176,10 +184,10 @@ void *calculateGs(void *rStartP)
     return NULL;
 }
 
-int main(int argc, char *argv[]){
+long main(long argc, char *argv[]){
 	struct timeval tp;
 	gettimeofday(&tp, NULL);
-	long int begin = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+	long begin = tp.tv_sec * 1000 + tp.tv_usec / 1000;
 	
     if(argc!=2){
         printf("Usage: cgs run_description\n");
@@ -206,7 +214,7 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
     char fileName[MAX_PG+1][1024];
-    for(int g=0;g<nPolarGrid+1;g++)
+    for(long g=0;g<nPolarGrid+1;g++)
         fscanf(fp, "%s\n", fileName[g]);
     fscanf(fp, "%d\n", &nThreads);
     fscanf(fp, "%lf\n", &Nf);
@@ -215,12 +223,12 @@ int main(int argc, char *argv[]){
     fscanf(fp, "%d\n", &n);  n=1<<n;
 	fclose(fp);
 	
-	alpha=3.7;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
+	alpha=3.5;//4.7;//2.5; //UV aliasing suppressed by exp(-2.5^2) ~ .2%
 	double alpha2=alpha; //Cut off kernel at exp(-2.5^2) ~ .2%
 	alpha3=alpha; //Have window function be exp(-2.5^2) at spatial edges
 	csigma=4*alpha*L/(n*M_PI);
 	cL=alpha2*csigma;
-	double pointsPerWidth=12.;
+	double pointsPerWidth=60.;
 	cn=2*pointsPerWidth*cL/csigma;//51; //21 still seems to show some aliasing
 
 	printf(KBLU" * L*sqrt(Nf) = %g\n"KRESET,L*sqrt(Nf));
@@ -234,7 +242,7 @@ int main(int argc, char *argv[]){
 			fprintf(stderr, "Unable to open asymptotic coefficents file.\n");
 			return 1;
 		}
-		fread(&acn,sizeof(int),1,fp);
+		fread(&acn,sizeof(long),1,fp);
 		printf(KBLU" * Loading %d coefficients...\n"KRESET,acn);
 		acs=malloc(sizeof(complex double)*acn);
 		fread(acs,sizeof(complex double),acn,fp);
@@ -242,7 +250,7 @@ int main(int argc, char *argv[]){
 		printf(KBLU" * Done\n"KRESET);
 	}
 
-    for(int g=0;g<nPolarGrid;g++){
+    for(long g=0;g<nPolarGrid;g++){
         if(! (fp = fopen(fileName[g], "r")))
         {
             fprintf(stderr, "Unable to open polar grid file \"%s\"\n",fileName[g]);
@@ -254,16 +262,16 @@ int main(int argc, char *argv[]){
         fscanf(fp, "%d\n", &nphis[g]);
         rss[g]=malloc(sizeof(double)*nrs[g]);
         phiss[g]=malloc(sizeof(double)*nphis[g]);
-        for(int i=0;i<nrs[g];i++)
+        for(long i=0;i<nrs[g];i++)
               fscanf(fp, "%lf\n", &rss[g][i]);
-        for(int i=0;i<nphis[g];i++)
+        for(long i=0;i<nphis[g];i++)
               fscanf(fp, "%lf\n", &phiss[g][i]);
         printf(KBLU" * %d radii between %g and %g\n"KRESET,nrs[g],rss[g][0],rss[g][nrs[g]-1]);
 		printf(KBLU" * %d angles between %g and %g\n"KRESET,nphis[g],phiss[g][0],phiss[g][nphis[g]-1]);
         polarDatas[g]=malloc(sizeof(double complex)*nrs[g]*nphis[g]);
         
-        for(int i=0;i<nrs[g];i++)
-            for(int j=0;j<nphis[g];j++){
+        for(long i=0;i<nrs[g];i++)
+            for(long j=0;j<nphis[g];j++){
                 double re,im;
                 fscanf(fp, "%lf\n", &re);
                 fscanf(fp, "%lf\n", &im);
@@ -271,11 +279,11 @@ int main(int argc, char *argv[]){
             }
         fclose(fp);
 		
-		if(debug && useAsymCoef){
+		/*if(debug && useAsymCoef){
 			double sqrtNf=sqrt(Nf);
 			double r=rss[g][nrs[g]-1]/sqrtNf;
 			printf(KCYN"polarGrid\tasym2\tasym3\n"KRESET);
-			for(int j=0;j<nphis[g];j++){
+			for(long j=0;j<nphis[g];j++){
 				double phi=phiss[g][j];
 
 				complex double e1=r*polarDatas[g][nrs[g]-1+nrs[g]*j];
@@ -290,13 +298,13 @@ int main(int argc, char *argv[]){
 				//printf(KCYN"%8.8g + i%8.8g \t%8.8g + i%8.8g \t%8.8g + i%8.8g\n"KRESET, creal(e1),cimag(e1), creal(e2),cimag(e2), creal(e3),cimag(e3));
 			}
 			
-		}
+		}*/
     }
 	
 	printf(KGRN"Checking if polar grid sufficiently large...\n"KRESET);
 	double maxErr=-1, maxVal=-1, phiWorst;
-	for(int g=0;g<nPolarGrid;g++)
-	for(int i=0;i<nphis[g];i++){
+	for(long g=0;g<nPolarGrid;g++)
+	for(long i=0;i<nphis[g];i++){
 		double phi=phiss[g][i];
 		if(g<nPolarGrid-1 && phi<phiss[g+1][nphis[g+1]-2])
 			continue;
@@ -321,7 +329,7 @@ int main(int argc, char *argv[]){
 	}
 	
 	printf(KGRN"Preparing sampling...\n"KRESET);
-	nFactor=1+((int)(cn*L/cL/n))/2*2;  // (int) how much denser we sample for convolution than fft
+	nFactor=1+((long)(cn*L/cL/n))/2*2;  // (long) how much denser we sample for convolution than fft
 	delta=2*L/((n-1)*nFactor); //about what delta would be
 	cn2=cL/delta;// How many points we actually use for the kernel, supposed to be
 	cn2=1+2*cn2;				// slightly larger than cn so points end up at points we can reuse.
@@ -331,7 +339,7 @@ int main(int argc, char *argv[]){
 	printf(KBLU" * Extra factor of samples needed for low-pass: %d*%d\n"KRESET,nFactor,nFactor);
 	printf(KBLU" * Kernel size in samples: %d*%d\n"KRESET,cn2,cn2);
 	
-	int nTotal=cn2+(n-1)*nFactor; //How many samples we will actually have to calculate with GE per dimension
+	long nTotal=cn2+(n-1)*nFactor; //How many samples we will actually have to calculate with GE per dimension
 	if(nTotal/2*2!=nTotal)
 	{
 		fprintf(stderr, "Internal error, nTotal should be even.\n");
@@ -343,15 +351,15 @@ int main(int argc, char *argv[]){
 	ker=malloc(sizeof(double)*cn2*cn2);
 	cDelta=2*cL2/(cn2-1);
 	
-	for(int ci=0;ci<cn2;ci++)
-		for(int cj=0;cj<cn2;cj++){
+	for(long ci=0;ci<cn2;ci++)
+		for(long cj=0;cj<cn2;cj++){
 			double dx=-cL2 + ci*cDelta;
 			double dy=-cL2 + cj*cDelta;
 			ker[ci+cj*cn2]=exp(-(dx*dx+dy*dy)/(csigma*csigma));
 			//if(ci!=cn2/2 && cj!=cn2/2)ker[ci+cj*cn2]=0;
 			kerNorm+=ker[ci+cj*cn2];
 		}
-	for(int ci=0;ci<cn2*cn2;ci++) //normalize
+	for(long ci=0;ci<cn2*cn2;ci++) //normalize
 		ker[ci]/=kerNorm;
 	
 	Delta=2*L/(n-1);
@@ -359,29 +367,32 @@ int main(int argc, char *argv[]){
 
 	printf(KGRN"Allocating memory to hold real space G...\n"KRESET);
 	Gs=fftw_malloc(sizeof(fftw_complex)*n*n);
-	Gso=fftw_malloc(sizeof(fftw_complex)*n*n);//maybe fftw can actually do it in-place for these sizes?
+	if(inPlace)
+		Gso=Gs;
+	else	
+		Gso=fftw_malloc(sizeof(fftw_complex)*n*n);//maybe fftw can actually do it in-place for these sizes?
 	if(!Gso){
 		fprintf(stderr, "Not enough memory\n");
 		return 1;
 	}
-	printf(KBLU" * Sucessfully allocated %d MB\n"KRESET,(int)(sizeof(double complex)*2*n*n/(1024*1024)));
+	printf(KBLU" * Sucessfully allocated %d MB\n"KRESET,(long)(sizeof(double complex)*(inPlace?1:2)*n*n/(1024*1024)));
 	printf(KBLU" * Using this memory to find best fft scheme to use later\n"KRESET);
 	fftw_plan_with_nthreads(nThreads);
 	fftw_plan fftPlan = fftw_plan_dft_2d(n,n, Gs, Gso, FFTW_FORWARD, FFTW_ESTIMATE);
 	
 	printf(KGRN"Sampling G...\n"KRESET);
     printf(KBLU" * Starting %d threads...\n"KRESET, nThreads);
-    int *startPoints=malloc(sizeof(int)*nThreads);;
+    long *startPolongs=malloc(sizeof(long)*nThreads);;
     pthread_t *workers=malloc(sizeof(pthread_t)*nThreads);
-    for(int i=0;i<nThreads;i++){
-        startPoints[i]=i;
-        if(pthread_create(&workers[i], NULL, calculateGs, &startPoints[i])) {
+    for(long i=0;i<nThreads;i++){
+        startPolongs[i]=i;
+        if(pthread_create(&workers[i], NULL, calculateGs, &startPolongs[i])) {
             fprintf(stderr, "Error creating thread\n");
             return 1;
         }
     }
     
-    for(int i=0;i<nThreads;i++){
+    for(long i=0;i<nThreads;i++){
         printf(KYEL"              Waiting for thread %d to join...\r"KRESET, i);
         if(pthread_join(workers[i], NULL)) {
             fprintf(stderr, "Error joining thread\n");
@@ -395,10 +406,10 @@ int main(int argc, char *argv[]){
 	double complex *phases=malloc(sizeof(double complex)*n);
 	
 	printf(KBLU" * Prefixing phases\n"KRESET);
-	for(int i=0;i<n;i++)
+	for(long i=0;i<n;i++)
 		phases[i]=cexp(I*(omegaMax*L*2*i/(n-1)-L*omegaMax*.5));
-	for(int i=0;i<n;i++)
-		for(int j=0;j<n;j++)
+	for(long i=0;i<n;i++)
+		for(long j=0;j<n;j++)
 			Gs[i+j*n]*=phases[i]*phases[j];
 	
 	printf(KBLU" * Running fftw3\n"KRESET);
@@ -406,14 +417,14 @@ int main(int argc, char *argv[]){
 	//fftw_free(Gs);
 	
 	printf(KBLU" * Postfixing phases\n"KRESET);
-	for(int i=0;i<n;i++)
-		for(int j=0;j<n;j++)
+	for(long i=0;i<n;i++)
+		for(long j=0;j<n;j++)
 			Gso[i+j*n]*=phases[i]*phases[j];
 	
 	printf(KBLU" * Downsampling, normalizing, and correcting for UV filter\n"KRESET);
 	//fftw_destroy_plan(fftPlan);
-	int stride=1<<3;
-	int prunedN=n/2/stride;
+	long stride=1<<2;
+	long prunedN=n/2/stride;
 	double deltaOmegaPruned=stride*2*omegaMax/(n-1);
 	double omegaMaxPruned=deltaOmegaPruned*(prunedN-1)/2;
 	double complex *GsPruned = malloc(sizeof(double complex)*prunedN*prunedN);
@@ -422,8 +433,8 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 	
-	for(int i=0;i<prunedN;i++)
-		for(int j=0;j<prunedN;j++){
+	for(long i=0;i<prunedN;i++)
+		for(long j=0;j<prunedN;j++){
 			double omega=-omegaMaxPruned+i*deltaOmegaPruned;
 			double kx=-omegaMaxPruned+j*deltaOmegaPruned;
 			GsPruned[(prunedN-1-i)+j*prunedN]=( Gso[ (n/4 + stride/2 -1 +i*stride)  +  (n/4+  stride/2 -1 + j*stride)*n ]+
@@ -441,20 +452,20 @@ int main(int argc, char *argv[]){
     fp=fopen(fn,"w");
 	fwrite(&Nf,sizeof(double),1,fp);
 	fwrite(&L,sizeof(double),1,fp);
-	fwrite(&n,sizeof(int),1,fp);
+	fwrite(&n,sizeof(long),1,fp);
 	fwrite(&csigma,sizeof(double),1,fp);
 	fwrite(&cL,sizeof(double),1,fp);
-	fwrite(&cn,sizeof(int),1,fp);
+	fwrite(&cn,sizeof(long),1,fp);
 
 	
-	fwrite(&prunedN,sizeof(int),1,fp);
+	fwrite(&prunedN,sizeof(long),1,fp);
 	fwrite(&omegaMaxPruned,sizeof(double),1,fp);
 	fwrite(GsPruned,sizeof(double complex),prunedN*prunedN,fp);
 
     fclose(fp);
     printf(KBLU" * Done\n"KRESET);
 	gettimeofday(&tp, NULL);
-	long int end = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+	long long end = tp.tv_sec * 1000 + tp.tv_usec / 1000;
 	printf(KYEL"Total wall time: %.1f seconds\n"KRESET,((double)(end - begin))/1000);
 
     

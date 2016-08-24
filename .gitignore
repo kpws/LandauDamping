@@ -5,3 +5,4 @@ cgs
 *.pyc
 cgsOutput/*
 figs/*
+bin/*
